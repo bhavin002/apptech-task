@@ -1,162 +1,159 @@
 import { Request, Response } from "express";
 import Availability from "../models/availability.model";
-import Resource from "../models/resource.model";
+import {
+  getAvailability,
+  getResourceOrFail,
+} from "../services/availability.service";
+import { AppError, setErrorResponse } from "../utils/app-error";
 import { CommonResponse } from "../utils/common-response";
 
-export default class AvailabilityController {
-  commonResponse = new CommonResponse();
+const findRuleOrFail = async (req: Request) => {
+  const availability = await Availability.findOne({
+    where: {
+      id: Number(req.params.id) || 0,
+      resourceId: Number(req.params.resourceId) || 0,
+    },
+  });
 
+  if (!availability) {
+    throw new AppError(404, "Availability not found.");
+  }
+
+  return availability;
+};
+
+export default class AvailabilityController {
   create = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      const resourceId =
-        Number(req.params.resourceId);
-
-      const resource =
-        await Resource.findByPk(
-          resourceId
-        );
-
-      if (!resource) {
-        throw new Error(
-          "Resource not found."
-        );
-      }
+      const resource = await getResourceOrFail(
+        Number(req.params.resourceId)
+      );
 
       const availability =
         await Availability.create({
-          resourceId,
+          resourceId: resource.id,
           dayOfWeek: req.body.dayOfWeek,
           startTime: req.body.startTime,
           endTime: req.body.endTime,
         });
 
-      this.commonResponse.status = 201;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 201;
+      commonResponse.success = true;
+      commonResponse.message =
         "Availability created successfully";
-      this.commonResponse.data =
+      commonResponse.data =
         availability;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   list = async (
     req: Request,
     res: Response
   ) => {
-    try {
-      const availability =
-        await Availability.findAll({
-          where: {
-            resourceId:
-              Number(req.params.resourceId),
-          },
-          order: [["dayOfWeek", "ASC"]],
-        });
+    const commonResponse = new CommonResponse();
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+    try {
+      const resourceId = Number(req.params.resourceId);
+      const { date, timezone } = req.query as {
+        date?: string;
+        timezone?: string;
+      };
+
+      if (date) {
+        commonResponse.data = await getAvailability(
+          resourceId,
+          date,
+          timezone
+        );
+      } else {
+        await getResourceOrFail(resourceId);
+
+        commonResponse.data =
+          await Availability.findAll({
+            where: { resourceId },
+            order: [
+              ["dayOfWeek", "ASC"],
+              ["startTime", "ASC"],
+            ],
+          });
+      }
+
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Availability fetched successfully";
-      this.commonResponse.data =
-        availability;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   update = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      const availability =
-        await Availability.findByPk(
-          Number(req.params.id)
-        );
+      const availability = await findRuleOrFail(req);
 
-      if (!availability) {
-        throw new Error(
-          "Availability not found."
-        );
-      }
+      await availability.update({
+        dayOfWeek: req.body.dayOfWeek,
+        startTime: req.body.startTime,
+        endTime: req.body.endTime,
+      });
 
-      await availability.update(
-        req.body
-      );
-
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Availability updated successfully";
-      this.commonResponse.data =
+      commonResponse.data =
         availability;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   delete = async (
     req: Request,
     res: Response
   ) => {
-    try {
-      const availability =
-        await Availability.findByPk(
-          Number(req.params.id)
-        );
+    const commonResponse = new CommonResponse();
 
-      if (!availability) {
-        throw new Error(
-          "Availability not found."
-        );
-      }
+    try {
+      const availability = await findRuleOrFail(req);
 
       await availability.destroy();
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Availability deleted successfully";
-      this.commonResponse.data = [];
+      commonResponse.data = [];
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 }

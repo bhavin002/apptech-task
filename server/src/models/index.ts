@@ -5,6 +5,7 @@ import Booking from "./booking.model";
 
 User.hasMany(Booking, {
   foreignKey: "userId",
+  onDelete: "CASCADE",
 });
 
 Booking.belongsTo(User, {
@@ -13,6 +14,7 @@ Booking.belongsTo(User, {
 
 Resource.hasMany(Availability, {
   foreignKey: "resourceId",
+  onDelete: "CASCADE",
 });
 
 Availability.belongsTo(Resource, {
@@ -21,6 +23,7 @@ Availability.belongsTo(Resource, {
 
 Resource.hasMany(Booking, {
   foreignKey: "resourceId",
+  onDelete: "CASCADE",
 });
 
 Booking.belongsTo(Resource, {

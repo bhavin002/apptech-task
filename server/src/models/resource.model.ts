@@ -15,15 +15,14 @@ interface ResourceAttributes {
 }
 
 interface ResourceCreationAttributes
-  extends Optional<ResourceAttributes, "id"> {}
+  extends Optional<ResourceAttributes, "id"> { }
 
 class Resource
   extends Model<
     ResourceAttributes,
     ResourceCreationAttributes
   >
-  implements ResourceAttributes
-{
+  implements ResourceAttributes {
   declare id: number;
   declare name: string;
   declare timezone: string;

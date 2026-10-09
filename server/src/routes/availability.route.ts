@@ -8,6 +8,7 @@ import {
 
 import {
   availabilityValidation,
+  availabilityQueryValidation,
 } from "../validator/availability.validator";
 
 import {
@@ -31,6 +32,10 @@ router.post(
 router.get(
   "/:resourceId/availability",
   requireSignIn,
+  validateMiddleware(
+    availabilityQueryValidation,
+    "query"
+  ),
   controller.list
 );
 

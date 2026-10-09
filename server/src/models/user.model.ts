@@ -12,13 +12,12 @@ interface UserAttributes {
   lastName: string;
   email: string;
   password: string;
-  isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 interface UserCreationAttributes
-  extends Optional<UserAttributes, "id" | "isActive"> {}
+  extends Optional<UserAttributes, "id"> {}
 
 class User
   extends Model<UserAttributes, UserCreationAttributes>
@@ -29,7 +28,6 @@ class User
   declare lastName: string;
   declare email: string;
   declare password: string;
-  declare isActive: boolean;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -61,11 +59,6 @@ User.init(
     password: {
       type: DataTypes.STRING,
       allowNull: false,
-    },
-
-    isActive: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
     },
   },
   {

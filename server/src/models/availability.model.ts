@@ -17,15 +17,14 @@ interface AvailabilityAttributes {
 }
 
 interface AvailabilityCreationAttributes
-  extends Optional<AvailabilityAttributes, "id"> {}
+  extends Optional<AvailabilityAttributes, "id"> { }
 
 class Availability
   extends Model<
     AvailabilityAttributes,
     AvailabilityCreationAttributes
   >
-  implements AvailabilityAttributes
-{
+  implements AvailabilityAttributes {
   declare id: number;
   declare resourceId: number;
   declare dayOfWeek: number;
@@ -53,6 +52,7 @@ Availability.init(
       allowNull: false,
     },
 
+    // Local wall-clock times in the resource's timezone, not UTC.
     startTime: {
       type: DataTypes.TIME,
       allowNull: false,
@@ -67,6 +67,7 @@ Availability.init(
     sequelize,
     tableName: "availabilities",
     timestamps: true,
+    indexes: [{ fields: ["resourceId", "dayOfWeek"] }],
   }
 );
 

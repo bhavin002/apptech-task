@@ -1,19 +1,28 @@
 import { Request, Response } from "express";
 import User from "../models/user.model";
+import { AuthRequest } from "../middlewares/auth.middleware";
 import {
   comparePassword,
   generateToken,
   hashPassword,
 } from "../utils/auth.helper";
+import { AppError, setErrorResponse } from "../utils/app-error";
 import { CommonResponse } from "../utils/common-response";
 
-export default class AuthController {
-  commonResponse = new CommonResponse();
+const serializeUser = (user: User) => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+});
 
+export default class AuthController {
   signup = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
       const {
         firstName,
@@ -29,7 +38,8 @@ export default class AuthController {
       });
 
       if (existingUser) {
-        throw new Error(
+        throw new AppError(
+          400,
           "Account already exists."
         );
       }
@@ -42,7 +52,6 @@ export default class AuthController {
         lastName,
         email: email.toLowerCase(),
         password: hashedPassword,
-        isActive: true,
       });
 
       const token = generateToken({
@@ -50,37 +59,30 @@ export default class AuthController {
         email: user.email,
       });
 
-      this.commonResponse.status = 201;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 201;
+      commonResponse.success = true;
+      commonResponse.message =
         "Account created successfully";
 
-      this.commonResponse.data = {
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-        },
+      commonResponse.data = {
+        user: serializeUser(user),
         token,
       };
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   login = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
       const { email, password } =
         req.body;
@@ -91,20 +93,12 @@ export default class AuthController {
         },
       });
 
-      if (!user) {
-        throw new Error(
-          "Invalid email or password."
-        );
-      }
-
-      const isPasswordValid =
-        await comparePassword(
-          password,
-          user.password
-        );
-
-      if (!isPasswordValid) {
-        throw new Error(
+      if (
+        !user ||
+        !(await comparePassword(password, user.password))
+      ) {
+        throw new AppError(
+          401,
           "Invalid email or password."
         );
       }
@@ -114,30 +108,48 @@ export default class AuthController {
         email: user.email,
       });
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Login successfully";
 
-      this.commonResponse.data = {
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-        },
+      commonResponse.data = {
+        user: serializeUser(user),
         token,
       };
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
+  };
+
+  me = async (
+    req: AuthRequest,
+    res: Response
+  ) => {
+    const commonResponse = new CommonResponse();
+
+    try {
+      const user = await User.findByPk(req.user?.id);
+
+      if (!user) {
+        throw new AppError(401, "Authentication required.");
+      }
+
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
+        "Profile fetched successfully";
+      commonResponse.data = serializeUser(user);
+    } catch (error: any) {
+      setErrorResponse(commonResponse, error);
+    }
+
+    return res
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 }

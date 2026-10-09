@@ -1,251 +1,174 @@
 import { Response } from "express";
 
-import Booking from "../models/booking.model";
-import Resource from "../models/resource.model";
+import { Booking, Resource } from "../models";
 
 import {
   AuthRequest,
 } from "../middlewares/auth.middleware";
 
+import {
+  createBooking,
+  getOwnBookingOrFail,
+  serializeBooking,
+  updateBooking,
+} from "../services/booking.service";
+
+import { AppError, setErrorResponse } from "../utils/app-error";
 import { CommonResponse } from "../utils/common-response";
 
-export default class BookingController {
-  commonResponse = new CommonResponse();
+const getUserId = (req: AuthRequest) => {
+  if (!req.user) {
+    throw new AppError(401, "Authentication required.");
+  }
 
+  return req.user.id;
+};
+
+export default class BookingController {
   create = async (
     req: AuthRequest,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      if (!req.user) {
-        throw new Error(
-          "Authentication required."
-        );
-      }
+      const booking = await createBooking(
+        getUserId(req),
+        req.body
+      );
 
-      const {
-        resourceId,
-        startTime,
-        endTime,
-      } = req.body;
-
-      const resource =
-        await Resource.findByPk(
-          resourceId
-        );
-
-      if (!resource) {
-        throw new Error(
-          "Resource not found."
-        );
-      }
-
-      const booking =
-        await Booking.create({
-          userId: req.user.id,
-          resourceId,
-          startTime: new Date(startTime),
-          endTime: new Date(endTime),
-        });
-
-      this.commonResponse.status = 201;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 201;
+      commonResponse.success = true;
+      commonResponse.message =
         "Booking created successfully";
-      this.commonResponse.data =
-        booking;
+      commonResponse.data = booking;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   list = async (
     req: AuthRequest,
     res: Response
   ) => {
-    try {
-      if (!req.user) {
-        throw new Error(
-          "Authentication required."
-        );
-      }
+    const commonResponse = new CommonResponse();
 
+    try {
       const bookings =
         await Booking.findAll({
           where: {
-            userId: req.user.id,
+            userId: getUserId(req),
           },
+          include: [Resource],
           order: [
             ["startTime", "ASC"],
           ],
         });
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Bookings fetched successfully";
-      this.commonResponse.data =
-        bookings;
+      commonResponse.data = bookings.map(
+        (booking: any) =>
+          serializeBooking(booking, booking.Resource)
+      );
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   getById = async (
     req: AuthRequest,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      if (!req.user) {
-        throw new Error(
-          "Authentication required."
-        );
-      }
+      const booking = await getOwnBookingOrFail(
+        Number(req.params.id),
+        getUserId(req)
+      );
 
-      const booking =
-        await Booking.findOne({
-          where: {
-            id: Number(req.params.id),
-            userId: req.user.id,
-          },
-        });
+      const resource = await Resource.findByPk(
+        booking.resourceId
+      );
 
-      if (!booking) {
-        throw new Error(
-          "Booking not found."
-        );
-      }
-
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Booking fetched successfully";
-      this.commonResponse.data =
-        booking;
+      commonResponse.data =
+        serializeBooking(booking, resource);
     } catch (error: any) {
-      this.commonResponse.status = 404;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   update = async (
     req: AuthRequest,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      if (!req.user) {
-        throw new Error(
-          "Authentication required."
-        );
-      }
+      const booking = await updateBooking(
+        Number(req.params.id),
+        getUserId(req),
+        req.body
+      );
 
-      const booking =
-        await Booking.findOne({
-          where: {
-            id: Number(req.params.id),
-            userId: req.user.id,
-          },
-        });
-
-      if (!booking) {
-        throw new Error(
-          "Booking not found."
-        );
-      }
-
-      await booking.update({
-        startTime: new Date(
-          req.body.startTime
-        ),
-        endTime: new Date(
-          req.body.endTime
-        ),
-      });
-
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Booking updated successfully";
-      this.commonResponse.data =
-        booking;
+      commonResponse.data = booking;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   delete = async (
     req: AuthRequest,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      if (!req.user) {
-        throw new Error(
-          "Authentication required."
-        );
-      }
-
-      const booking =
-        await Booking.findOne({
-          where: {
-            id: Number(req.params.id),
-            userId: req.user.id,
-          },
-        });
-
-      if (!booking) {
-        throw new Error(
-          "Booking not found."
-        );
-      }
+      const booking = await getOwnBookingOrFail(
+        Number(req.params.id),
+        getUserId(req)
+      );
 
       await booking.destroy();
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Booking deleted successfully";
-      this.commonResponse.data = [];
+      commonResponse.data = [];
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 }

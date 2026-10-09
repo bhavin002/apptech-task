@@ -1,14 +1,16 @@
 import { Request, Response } from "express";
-import Resource from "../models/resource.model";
+import { Availability, Resource } from "../models";
+import { getResourceOrFail } from "../services/availability.service";
+import { setErrorResponse } from "../utils/app-error";
 import { CommonResponse } from "../utils/common-response";
 
 export default class ResourceController {
-  commonResponse = new CommonResponse();
-
   create = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
       const {
         name,
@@ -21,155 +23,130 @@ export default class ResourceController {
           timezone,
         });
 
-      this.commonResponse.status = 201;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 201;
+      commonResponse.success = true;
+      commonResponse.message =
         "Resource created successfully";
-      this.commonResponse.data = resource;
+      commonResponse.data = resource;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   list = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
       const resources =
         await Resource.findAll({
-          order: [["id", "DESC"]],
+          include: [Availability],
+          order: [
+            ["id", "ASC"],
+            [Availability, "dayOfWeek", "ASC"],
+            [Availability, "startTime", "ASC"],
+          ],
         });
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Resources fetched successfully";
-      this.commonResponse.data = resources;
+      commonResponse.data = resources;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   getById = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      const resource =
-        await Resource.findByPk(
-          Number(req.params.id)
-        );
+      const resource = await getResourceOrFail(
+        Number(req.params.id)
+      );
 
-      if (!resource) {
-        throw new Error(
-          "Resource not found."
-        );
-      }
-
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Resource fetched successfully";
-      this.commonResponse.data = resource;
+      commonResponse.data = resource;
     } catch (error: any) {
-      this.commonResponse.status = 404;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   update = async (
     req: Request,
     res: Response
   ) => {
+    const commonResponse = new CommonResponse();
+
     try {
-      const resource =
-        await Resource.findByPk(
-          Number(req.params.id)
-        );
+      const resource = await getResourceOrFail(
+        Number(req.params.id)
+      );
 
-      if (!resource) {
-        throw new Error(
-          "Resource not found."
-        );
-      }
+      await resource.update({
+        name: req.body.name,
+        timezone: req.body.timezone,
+      });
 
-      await resource.update(req.body);
-
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Resource updated successfully";
-      this.commonResponse.data = resource;
+      commonResponse.data = resource;
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 
   delete = async (
     req: Request,
     res: Response
   ) => {
-    try {
-      const resource =
-        await Resource.findByPk(
-          Number(req.params.id)
-        );
+    const commonResponse = new CommonResponse();
 
-      if (!resource) {
-        throw new Error(
-          "Resource not found."
-        );
-      }
+    try {
+      const resource = await getResourceOrFail(
+        Number(req.params.id)
+      );
 
       await resource.destroy();
 
-      this.commonResponse.status = 200;
-      this.commonResponse.success = true;
-      this.commonResponse.message =
+      commonResponse.status = 200;
+      commonResponse.success = true;
+      commonResponse.message =
         "Resource deleted successfully";
-      this.commonResponse.data = [];
+      commonResponse.data = [];
     } catch (error: any) {
-      this.commonResponse.status = 400;
-      this.commonResponse.success = false;
-      this.commonResponse.message =
-        error.message;
-      this.commonResponse.data = [];
+      setErrorResponse(commonResponse, error);
     }
 
     return res
-      .status(this.commonResponse.status)
-      .send(this.commonResponse);
+      .status(commonResponse.status)
+      .send(commonResponse);
   };
 }

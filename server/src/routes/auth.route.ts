@@ -8,6 +8,10 @@ import {
 } from "../validator/auth.validator";
 
 import {
+  requireSignIn,
+} from "../middlewares/auth.middleware";
+
+import {
   validateMiddleware,
 } from "../middlewares/validation.middleware";
 
@@ -25,6 +29,12 @@ router.post(
   "/login",
   validateMiddleware(loginValidation),
   authController.login
+);
+
+router.get(
+  "/me",
+  requireSignIn,
+  authController.me
 );
 
 export default router;

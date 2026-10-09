@@ -12,18 +12,69 @@ const sequelize = new Sequelize(
     port: Number(process.env.DB_PORT),
     dialect: "postgres",
     logging: false,
+    pool: {
+      max: 10,
+    },
   }
 );
 
+const applyConstraints = async () => {
+  await sequelize.query(
+    "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+  );
+
+  const constraints: { name: string; table: string; sql: string }[] = [
+    {
+      name: "availabilities_day_of_week_range",
+      table: "availabilities",
+      sql: `CHECK ("dayOfWeek" BETWEEN 0 AND 6)`,
+    },
+    {
+      name: "availabilities_time_order",
+      table: "availabilities",
+      sql: `CHECK ("endTime" > "startTime")`,
+    },
+    {
+      name: "bookings_time_order",
+      table: "bookings",
+      sql: `CHECK ("endTime" > "startTime")`,
+    },
+    {
+      name: "bookings_no_overlap",
+      table: "bookings",
+      sql: `EXCLUDE USING gist (
+        "resourceId" WITH =,
+        tstzrange("startTime", "endTime", '[)') WITH &&
+      )`,
+    },
+  ];
+
+  for (const constraint of constraints) {
+    await sequelize.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '${constraint.name}'
+        ) THEN
+          ALTER TABLE ${constraint.table}
+            ADD CONSTRAINT ${constraint.name} ${constraint.sql};
+        END IF;
+      END $$;
+    `);
+  }
+};
+
+const syncDB = async () => {
+  await import("../models");
+  await sequelize.authenticate();
+  await sequelize.sync();
+  await applyConstraints();
+};
+
 const connectDB = async () => {
   try {
-    await sequelize.authenticate();
-
-    console.log("PostgreSQL connected successfully.");
-
-    await sequelize.sync();
-
-    console.log("Database synchronized successfully.");
+    await syncDB();
+    console.log("PostgreSQL connected and synchronized successfully.");
   } catch (error) {
     console.error("Database connection failed:", error);
     process.exit(1);
@@ -31,4 +82,4 @@ const connectDB = async () => {
 };
 
 export default connectDB;
-export { sequelize };
+export { sequelize, syncDB };

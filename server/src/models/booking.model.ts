@@ -17,15 +17,14 @@ interface BookingAttributes {
 }
 
 interface BookingCreationAttributes
-  extends Optional<BookingAttributes, "id"> {}
+  extends Optional<BookingAttributes, "id"> { }
 
 class Booking
   extends Model<
     BookingAttributes,
     BookingCreationAttributes
   >
-  implements BookingAttributes
-{
+  implements BookingAttributes {
   declare id: number;
   declare userId: number;
   declare resourceId: number;
@@ -53,6 +52,7 @@ Booking.init(
       allowNull: false,
     },
 
+    // DataTypes.DATE is "timestamp with time zone" (timestamptz) in PostgreSQL.
     startTime: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -67,6 +67,7 @@ Booking.init(
     sequelize,
     tableName: "bookings",
     timestamps: true,
+    indexes: [{ fields: ["userId"] }],
   }
 );
 
