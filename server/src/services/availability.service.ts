@@ -1,4 +1,4 @@
-import { DateTime, IANAZone } from "luxon";
+import { DateTime } from "luxon";
 import { Op } from "sequelize";
 
 import { SLOT_MINUTES } from "../config/booking";
@@ -16,9 +16,6 @@ export interface WeeklyRule {
   startTime: string;
   endTime: string;
 }
-
-export const isValidTimezone = (timezone: string) =>
-  IANAZone.isValidZone(timezone);
 
 export const parseResourceDate = (
   date: string,
@@ -125,15 +122,9 @@ export const toUtcIso = (value: DateTime | Date) =>
 
 export const getAvailability = async (
   resourceId: number,
-  date: string,
-  displayTimezone?: string
+  date: string
 ) => {
   const resource = await getResourceOrFail(resourceId);
-  const timezone = displayTimezone || resource.timezone;
-
-  if (!isValidTimezone(timezone)) {
-    throw new AppError(400, "Invalid timezone.");
-  }
 
   const intervals = await getSlotIntervals(resource, date);
 
@@ -167,10 +158,6 @@ export const getAvailability = async (
         end: end.setZone(resource.timezone).toFormat("HH:mm"),
         utcOffset: local.toFormat("ZZ"),
       },
-      display: {
-        start: start.setZone(timezone).toISO({ suppressMilliseconds: true }),
-        end: end.setZone(timezone).toISO({ suppressMilliseconds: true }),
-      },
     };
   });
 
@@ -181,7 +168,6 @@ export const getAvailability = async (
       timezone: resource.timezone,
     },
     date,
-    displayTimezone: timezone,
     slotMinutes: SLOT_MINUTES,
     slots,
   };

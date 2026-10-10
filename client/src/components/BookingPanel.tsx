@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api'
 import type { AvailabilityResponse, Resource, Slot } from '../api'
-import { formatDateTime, formatTime, todayIn } from '../time'
+import { dateIn, formatDateTime, formatDay, formatSlotRange, formatTime, formatZone, todayIn } from '../time'
 
 interface Props {
   timezone: string
@@ -20,6 +20,15 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
   const [refreshKey, setRefreshKey] = useState(0)
 
   const resource = resources.find((r) => r.id === resourceId)
+
+  // On a DST fall-back night the same local start time occurs twice (at different instants);
+  // those slots show their zone so the two can be told apart.
+  const hasRepeatedStart = (slot: Slot) =>
+    (availability?.slots ?? []).filter(
+      (other) => formatTime(other.startTime, timezone) === formatTime(slot.startTime, timezone),
+    ).length > 1
+
+  const slotLabel = (slot: Slot) => formatSlotRange(slot.startTime, slot.endTime, timezone, hasRepeatedStart(slot))
 
   useEffect(() => {
     api
@@ -57,7 +66,7 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
       await api.book(resourceId, selected.startTime, selected.endTime)
       setMessage({
         kind: 'success',
-        text: `Booked ${resource?.name} for ${formatDateTime(selected.startTime, timezone)}.`,
+        text: `Booked ${resource?.name} for ${formatDateTime(selected.startTime, timezone)} ${formatZone(selected.startTime, timezone)}.`,
       })
       onBooked()
     } catch (err) {
@@ -126,10 +135,15 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
       )}
 
       {availability && availability.slots.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
           {availability.slots.map((slot) => {
             const booked = slot.status === 'booked'
             const isSelected = selected?.startTime === slot.startTime
+            // Slots are instants; show them in the viewer's timezone.
+            const label = `${formatTime(slot.startTime, timezone)}-${formatTime(slot.endTime, timezone)}`
+            const resourceLabel = `${slot.resourceLocal.start}-${slot.resourceLocal.end}`
+            // The viewer's calendar day can differ from the resource's (e.g. after midnight in India).
+            const otherDay = dateIn(slot.startTime, timezone) !== date
             return (
               <button
                 key={slot.startTime}
@@ -143,7 +157,15 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
                     : 'border-gray-300 hover:border-blue-500'
                   }`}
               >
-                {slot.resourceLocal.start}-{slot.resourceLocal.end}
+                {otherDay && (
+                  <span className="block text-xs font-normal opacity-75">{formatDay(slot.startTime, timezone)}</span>
+                )}
+                <span className="block whitespace-nowrap">{slotLabel(slot)}</span>
+                {label !== resourceLabel && (
+                  <span className="block text-xs font-normal opacity-75">
+                    {resourceLabel} {resource?.timezone}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -153,7 +175,8 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
       {selected && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded border border-blue-200 bg-blue-50 px-3 py-2">
           <span className="text-sm">
-            {resource?.name}: {formatDateTime(selected.startTime, timezone)} – {formatTime(selected.endTime, timezone)}
+            {resource?.name}: {formatDay(selected.startTime, timezone)},{' '}
+            {formatSlotRange(selected.startTime, selected.endTime, timezone, true)}
           </span>
           <button
             type="button"

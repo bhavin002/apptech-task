@@ -65,17 +65,10 @@ export default class AvailabilityController {
 
     try {
       const resourceId = Number(req.params.resourceId);
-      const { date, timezone } = req.query as {
-        date?: string;
-        timezone?: string;
-      };
+      const { date } = req.query as { date?: string };
 
       if (date) {
-        commonResponse.data = await getAvailability(
-          resourceId,
-          date,
-          timezone
-        );
+        commonResponse.data = await getAvailability(resourceId, date);
       } else {
         await getResourceOrFail(resourceId);
 

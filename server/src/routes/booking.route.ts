@@ -2,9 +2,7 @@ import express from "express";
 
 import BookingController from "../controllers/booking.controller";
 
-import {
-  requireSignIn,
-} from "../middlewares/auth.middleware";
+import { requireSignIn } from "../middlewares/auth.middleware";
 
 import {
   validateMiddleware,

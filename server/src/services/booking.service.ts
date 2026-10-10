@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 
 import { SLOT_MINUTES } from "../config/booking";
+import { sequelize } from "../config/db";
 import Booking from "../models/booking.model";
 import Resource from "../models/resource.model";
 import { AppError } from "../utils/app-error";
@@ -73,16 +74,25 @@ export const createBooking = async (
   userId: number,
   input: BookingInput
 ) => {
-  const { resource, start, end } =
-    await validateBookingInput(input);
+  const { resource, start, end } = await validateBookingInput(input);
 
-  // A concurrent insert for an overlapping range fails here with
-  // SQLSTATE 23P01, which setErrorResponse maps to 409.
-  const booking = await Booking.create({
-    userId,
-    resourceId: resource.id,
-    startTime: start.toJSDate(),
-    endTime: end.toJSDate(),
+  const booking = await sequelize.transaction(async (transaction) => {
+    await Resource.findByPk(resource.id, {
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+
+    // double booking: an overlapping insert fails here with SQLSTATE 23P01,
+    // which setErrorResponse maps to 409.
+    return Booking.create(
+      {
+        userId,
+        resourceId: resource.id,
+        startTime: start.toJSDate(),
+        endTime: end.toJSDate(),
+      },
+      { transaction }
+    );
   });
 
   return serializeBooking(booking, resource);

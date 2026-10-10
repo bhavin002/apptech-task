@@ -1,6 +1,7 @@
 import request from "supertest";
 
 import app from "../src/app";
+import { SLOT_MINUTES } from "../src/config/booking";
 import { sequelize, syncDB } from "../src/config/db";
 import Resource from "../src/models/resource.model";
 import { seed } from "../src/seed";
@@ -53,6 +54,31 @@ export const createUser = async () => {
 export const bearer = (token: string) => ({
   Authorization: `Bearer ${token}`,
 });
+
+// Tests derive times from SLOT_MINUTES so they keep passing if the slot length changes.
+export const plusMinutes = (iso: string, minutes: number) =>
+  new Date(new Date(iso).getTime() + minutes * 60_000)
+    .toISOString()
+    .replace(".000Z", "Z");
+
+export const slotFrom = (start: string) => ({
+  start,
+  end: plusMinutes(start, SLOT_MINUTES),
+});
+
+export const getSlots = async (token: string, resourceId: number, date: string) =>
+  (
+    await api()
+      .get(`/api/resources/${resourceId}/availability`)
+      .query({ date })
+      .set(bearer(token))
+      .expect(200)
+  ).body.data.slots as {
+    startTime: string;
+    endTime: string;
+    status: "available" | "booked";
+    resourceLocal: { start: string; end: string; utcOffset: string };
+  }[];
 
 export const book = (
   token: string,

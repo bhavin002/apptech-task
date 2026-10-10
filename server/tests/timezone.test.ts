@@ -1,121 +1,75 @@
+import { DateTime } from "luxon";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import Availability from "../src/models/availability.model";
+import { SLOT_MINUTES } from "../src/config/booking";
+import Booking from "../src/models/booking.model";
 import Resource from "../src/models/resource.model";
-import { DayOfWeek } from "../src/models/common.model";
 import {
-  api,
-  bearer,
   book,
   closeDatabase,
   createUser,
   getResource,
+  getSlots,
   resetDatabase,
 } from "./helpers";
 
-describe("timezones", () => {
-  let token: string;
+// Guarantee 2 (part 1): availability is computed in the resource's timezone,
+// every instant is stored in UTC, and any client offset is accepted.
+const inKolkata = (iso: string) =>
+  DateTime.fromISO(iso, { zone: "Asia/Kolkata" }).toISO({ suppressMilliseconds: true })!;
+
+describe("booking across timezones", () => {
   let roomA: Resource;
+  let token: string;
 
   beforeEach(async () => {
     await resetDatabase();
-    token = (await createUser()).token;
     roomA = await getResource("Room A");
+    token = (await createUser()).token;
   });
 
   afterAll(closeDatabase);
 
-  const slotsFor = async (resourceId: number, date: string, timezone?: string) =>
-    (
-      await api()
-        .get(`/api/resources/${resourceId}/availability`)
-        .query(timezone ? { date, timezone } : { date })
-        .set(bearer(token))
-        .expect(200)
-    ).body.data;
+  it("an Asia/Kolkata user books a Europe/London room at the right instant", async () => {
+    // Room A opens 09:00 London. On Monday 2026-01-12 (GMT) that is 09:00Z = 14:30 in Kolkata.
+    const [first] = await getSlots(token, roomA.id, "2026-01-12");
+    expect(first.startTime).toBe("2026-01-12T09:00:00Z");
+    expect(first.resourceLocal).toMatchObject({ start: "09:00", utcOffset: "+00:00" });
 
-  it("shows a London winter slot in Asia/Kolkata", async () => {
-    const data = await slotsFor(roomA.id, "2026-01-12", "Asia/Kolkata");
+    // The Kolkata browser sends local times with their offset.
+    const start = inKolkata(first.startTime);
+    const end = inKolkata(first.endTime);
+    expect(start).toBe("2026-01-12T14:30:00+05:30");
 
-    expect(data.displayTimezone).toBe("Asia/Kolkata");
-    expect(data.slots[0]).toMatchObject({
-      startTime: "2026-01-12T09:00:00Z",
-      resourceLocal: { start: "09:00", utcOffset: "+00:00" },
-      display: {
-        start: "2026-01-12T14:30:00+05:30",
-        end: "2026-01-12T15:00:00+05:30",
-      },
-    });
+    const response = await book(token, roomA.id, start, end).expect(201);
+
+    expect(response.body.data.startTime).toBe("2026-01-12T09:00:00Z");
+    const stored = await Booking.findByPk(response.body.data.id);
+    expect(stored!.startTime.toISOString()).toBe("2026-01-12T09:00:00.000Z");
+    expect(stored!.endTime.getTime() - stored!.startTime.getTime()).toBe(SLOT_MINUTES * 60_000);
   });
 
-  it("shows a London summer slot in Asia/Kolkata", async () => {
-    // 2026-07-13 is a Monday; London is on BST (+01:00).
-    const data = await slotsFor(roomA.id, "2026-07-13", "Asia/Kolkata");
+  it("rejects a Kolkata booking that falls outside London working hours", async () => {
+    // 14:00 Kolkata = 08:30 London, before Room A opens.
+    const start = "2026-01-12T14:00:00+05:30";
+    const end = DateTime.fromISO(start, { setZone: true })
+      .plus({ minutes: SLOT_MINUTES })
+      .toISO({ suppressMilliseconds: true })!;
 
-    expect(data.slots[0]).toMatchObject({
-      startTime: "2026-07-13T08:00:00Z",
-      resourceLocal: { start: "09:00", utcOffset: "+01:00" },
-      display: { start: "2026-07-13T13:30:00+05:30" },
-    });
+    await book(token, roomA.id, start, end).expect(400);
   });
 
-  it("changing the display timezone does not change slot instants", async () => {
-    const instants = async (timezone?: string) =>
-      (await slotsFor(roomA.id, "2026-01-12", timezone)).slots.map(
-        (s: any) => [s.startTime, s.endTime]
-      );
+  it("uses each resource's own timezone for its opening hours", async () => {
+    const roomB = await getResource("Room B");
 
-    const reference = await instants();
-
-    expect(await instants("Asia/Kolkata")).toEqual(reference);
-    expect(await instants("America/Los_Angeles")).toEqual(reference);
-    expect(await instants("Pacific/Auckland")).toEqual(reference);
+    // Room B opens 10:00 Asia/Kolkata (+05:30, no DST) on Tuesdays = 04:30Z.
+    const [first] = await getSlots(token, roomB.id, "2026-01-13");
+    expect(first.startTime).toBe("2026-01-13T04:30:00Z");
+    expect(first.resourceLocal).toMatchObject({ start: "10:00", utcOffset: "+05:30" });
   });
 
-  describe("DST through the API", () => {
-    let night: Resource;
-
-    // A London resource open on Sundays 00:00-04:00 so the transitions
-    // fall inside working hours.
-    beforeEach(async () => {
-      night = await Resource.create({ name: "Night Desk", timezone: "Europe/London" });
-      await Availability.create({
-        resourceId: night.id,
-        dayOfWeek: DayOfWeek.SUNDAY,
-        startTime: "00:00",
-        endTime: "04:00",
-      });
-    });
-
-    it("spring forward: no slot for the missing hour", async () => {
-      const data = await slotsFor(night.id, "2026-03-29");
-
-      expect(data.slots.map((s: any) => s.resourceLocal.start)).toEqual([
-        "00:00", "00:30", "02:00", "02:30", "03:00", "03:30",
-      ]);
-    });
-
-    it("fall back: both 01:00 occurrences are listed and bookable separately", async () => {
-      const data = await slotsFor(night.id, "2026-10-25");
-      const oneAm = data.slots.filter((s: any) => s.resourceLocal.start === "01:00");
-
-      expect(oneAm).toHaveLength(2);
-      expect(oneAm.map((s: any) => s.resourceLocal.utcOffset)).toEqual(["+01:00", "+00:00"]);
-      expect(oneAm.map((s: any) => s.startTime)).toEqual([
-        "2026-10-25T00:00:00Z",
-        "2026-10-25T01:00:00Z",
-      ]);
-
-      for (const slot of oneAm) {
-        await book(token, night.id, slot.startTime, slot.endTime).expect(201);
-      }
-
-      const after = await slotsFor(night.id, "2026-10-25");
-      const booked = after.slots.filter((s: any) => s.status === "booked");
-      expect(booked.map((s: any) => s.startTime)).toEqual([
-        "2026-10-25T00:00:00Z",
-        "2026-10-25T01:00:00Z",
-      ]);
-    });
+  it("rejects times without an offset instead of guessing they are UTC", async () => {
+    await book(token, roomA.id, "2026-01-12T09:00:00", "2026-01-12T09:30:00").expect(400);
+    expect(await Booking.count()).toBe(0);
   });
 });
