@@ -11,6 +11,7 @@ import {
 } from "../validator/resource.validator";
 
 import {
+  requireAdmin,
   requireSignIn,
 } from "../middlewares/auth.middleware";
 
@@ -22,6 +23,7 @@ const resourceController =
 router.post(
   "/",
   requireSignIn,
+  requireAdmin,
   validateMiddleware(resourceValidation),
   resourceController.create
 );
@@ -41,6 +43,7 @@ router.get(
 router.put(
   "/:id",
   requireSignIn,
+  requireAdmin,
   validateMiddleware(resourceValidation),
   resourceController.update
 );
@@ -48,6 +51,7 @@ router.put(
 router.delete(
   "/:id",
   requireSignIn,
+  requireAdmin,
   resourceController.delete
 );
 

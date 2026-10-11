@@ -22,6 +22,11 @@ const applyConstraints = async () => {
 
   const constraints: { name: string; table: string; sql: string }[] = [
     {
+      name: "users_role_valid",
+      table: "users",
+      sql: `CHECK (role IN (0, 1))`,
+    },
+    {
       name: "availabilities_day_of_week_range",
       table: "availabilities",
       sql: `CHECK ("dayOfWeek" BETWEEN 0 AND 6)`,

@@ -1,3 +1,8 @@
+export enum UserRole {
+  USER = 0,
+  ADMIN = 1,
+}
+
 export enum DayOfWeek {
   SUNDAY = 0,
   MONDAY = 1,

@@ -5,6 +5,7 @@ import {
 } from "sequelize";
 
 import { sequelize } from "../config/db";
+import { UserRole } from "./common.model";
 
 interface UserAttributes {
   id: number;
@@ -12,12 +13,13 @@ interface UserAttributes {
   lastName: string;
   email: string;
   password: string;
+  role: UserRole;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 interface UserCreationAttributes
-  extends Optional<UserAttributes, "id"> {}
+  extends Optional<UserAttributes, "id" | "role"> {}
 
 class User
   extends Model<UserAttributes, UserCreationAttributes>
@@ -28,6 +30,7 @@ class User
   declare lastName: string;
   declare email: string;
   declare password: string;
+  declare role: UserRole;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -59,6 +62,12 @@ User.init(
     password: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+
+    role: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: UserRole.USER,
     },
   },
   {

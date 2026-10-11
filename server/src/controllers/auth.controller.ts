@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { UserRole } from "../models/common.model";
 import User from "../models/user.model";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import {
@@ -14,6 +15,7 @@ const serializeUser = (user: User) => ({
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
+  role: user.role,
 });
 
 export default class AuthController {
@@ -52,6 +54,7 @@ export default class AuthController {
         lastName,
         email: email.toLowerCase(),
         password: hashedPassword,
+        role: UserRole.USER,
       });
 
       const token = generateToken({

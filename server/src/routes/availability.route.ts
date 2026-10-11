@@ -12,6 +12,7 @@ import {
 } from "../validator/availability.validator";
 
 import {
+  requireAdmin,
   requireSignIn,
 } from "../middlewares/auth.middleware";
 
@@ -23,6 +24,7 @@ const controller =
 router.post(
   "/:resourceId/availability",
   requireSignIn,
+  requireAdmin,
   validateMiddleware(
     availabilityValidation
   ),
@@ -42,6 +44,7 @@ router.get(
 router.put(
   "/:resourceId/availability/:id",
   requireSignIn,
+  requireAdmin,
   validateMiddleware(
     availabilityValidation
   ),
@@ -51,6 +54,7 @@ router.put(
 router.delete(
   "/:resourceId/availability/:id",
   requireSignIn,
+  requireAdmin,
   controller.delete
 );
 

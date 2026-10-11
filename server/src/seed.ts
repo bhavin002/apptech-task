@@ -1,9 +1,11 @@
 import "dotenv/config";
 
 import { sequelize, syncDB } from "./config/db";
-import { DayOfWeek } from "./models/common.model";
+import { DayOfWeek, UserRole } from "./models/common.model";
 import Availability from "./models/availability.model";
 import Resource from "./models/resource.model";
+import User from "./models/user.model";
+import { hashPassword } from "./utils/auth.helper";
 
 interface SeedRule {
   dayOfWeek: DayOfWeek;
@@ -82,10 +84,39 @@ export const seed = async () => {
   }
 };
 
+export const seedAdmin = async () => {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    console.warn("ADMIN_EMAIL / ADMIN_PASSWORD not set; no admin user seeded.");
+    return;
+  }
+
+  const existing = await User.findOne({ where: { email } });
+
+  if (existing) {
+    if (existing.role !== UserRole.ADMIN) {
+      await existing.update({ role: UserRole.ADMIN });
+    }
+    return;
+  }
+
+  await User.create({
+    firstName: "Admin",
+    lastName: "User",
+    email,
+    password: await hashPassword(password),
+    role: UserRole.ADMIN,
+  });
+  console.log(`Admin user ${email} created.`);
+};
+
 if (require.main === module) {
   (async () => {
     await syncDB();
     await seed();
+    await seedAdmin();
     console.log("Seed completed.");
     await sequelize.close();
   })().catch((error) => {

@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import JWT from "jsonwebtoken";
+import { UserRole } from "../models/common.model";
 import User from "../models/user.model";
 
 export interface AuthRequest extends Request {
   user?: {
     id: number;
     email: string;
+    role: UserRole;
   };
 }
 
@@ -50,7 +52,7 @@ export const requireSignIn = async (
       });
     }
 
-    req.user = { id: user.id, email: user.email };
+    req.user = { id: user.id, email: user.email, role: user.role };
 
     next();
   } catch (error) {
@@ -61,4 +63,21 @@ export const requireSignIn = async (
       data: [],
     });
   }
+};
+
+export const requireAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (req.user?.role !== UserRole.ADMIN) {
+    return res.status(403).send({
+      success: false,
+      status: 403,
+      message: "Only admins can perform this action",
+      data: [],
+    });
+  }
+
+  next();
 };

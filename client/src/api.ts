@@ -5,6 +5,7 @@ export interface User {
   firstName: string
   lastName: string
   email: string
+  role: number // 0 = user, 1 = admin
 }
 
 export interface Resource {
