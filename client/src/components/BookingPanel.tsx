@@ -6,13 +6,14 @@ import { dateIn, dstNote, formatDateTime, formatDay, formatSlotRange, formatTime
 interface Props {
   timezone: string
   onBooked: () => void
+  availabilityKey: number
 }
 
 type Message = { kind: 'success' | 'error'; text: string } | null
 
 const MESSAGE_TIMEOUT_MS = 2000
 
-export default function BookingPanel({ timezone, onBooked }: Props) {
+export default function BookingPanel({ timezone, onBooked, availabilityKey }: Props) {
   const [resources, setResources] = useState<Resource[]>([])
   const [resourceId, setResourceId] = useState<number | null>(null)
   const [date, setDate] = useState('')
@@ -68,7 +69,7 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
     return () => {
       active = false
     }
-  }, [resourceId, date, refreshKey])
+  }, [resourceId, date, refreshKey, availabilityKey])
 
   const confirm = async () => {
     if (!selected || !resourceId) return

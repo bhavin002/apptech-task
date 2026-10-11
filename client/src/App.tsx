@@ -12,6 +12,7 @@ function App() {
   const { user, checking, logout: endSession } = useAuth()
   const [timezone, setTimezone] = useState(browserTimezone())
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [availabilityKey, setAvailabilityKey] = useState(0)
 
   const logout = () => {
     endSession()
@@ -33,6 +34,7 @@ function App() {
   const cancel = async (id: number) => {
     await api.cancel(id)
     loadBookings()
+    setAvailabilityKey((key) => key + 1)
   }
 
   if (checking) return null
@@ -56,7 +58,7 @@ function App() {
             </div>
           </header>
           <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-            <BookingPanel timezone={timezone} onBooked={loadBookings} />
+            <BookingPanel timezone={timezone} onBooked={loadBookings} availabilityKey={availabilityKey} />
             <MyBookings bookings={bookings} timezone={timezone} onCancel={cancel} />
           </main>
         </>
