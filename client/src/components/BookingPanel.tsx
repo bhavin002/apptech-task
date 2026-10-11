@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api'
 import type { AvailabilityResponse, Resource, Slot } from '../api'
-import { dateIn, formatDateTime, formatDay, formatSlotRange, formatTime, formatZone, todayIn } from '../time'
+import { dateIn, dstNote, formatDateTime, formatDay, formatSlotRange, formatTime, formatZone, todayIn } from '../time'
 
 interface Props {
   timezone: string
@@ -23,12 +23,14 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
 
   // On a DST fall-back night the same local start time occurs twice (at different instants);
   // those slots show their zone so the two can be told apart.
-  const hasRepeatedStart = (slot: Slot) =>
+  const hasRepeatedStart = (slot: Slot, zone: string) =>
     (availability?.slots ?? []).filter(
-      (other) => formatTime(other.startTime, timezone) === formatTime(slot.startTime, timezone),
+      (other) => formatTime(other.startTime, zone) === formatTime(slot.startTime, zone),
     ).length > 1
 
-  const slotLabel = (slot: Slot) => formatSlotRange(slot.startTime, slot.endTime, timezone, hasRepeatedStart(slot))
+  // Label in a given zone: the viewer's (main line) or the resource's own (small line).
+  const slotLabel = (slot: Slot, zone = timezone) =>
+    formatSlotRange(slot.startTime, slot.endTime, zone, hasRepeatedStart(slot, zone))
 
   useEffect(() => {
     api
@@ -108,6 +110,8 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
           <input
             type="date"
             value={date}
+            // Past days can't be booked; today is judged in the resource's timezone.
+            min={resource ? todayIn(resource.timezone) : undefined}
             onChange={(e) => {
               setSelected(null)
               setDate(e.target.value)
@@ -138,35 +142,67 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
           {availability.slots.map((slot) => {
             const booked = slot.status === 'booked'
+            const past = slot.status === 'past'
             const isSelected = selected?.startTime === slot.startTime
             // Slots are instants; show them in the viewer's timezone.
             const label = `${formatTime(slot.startTime, timezone)}-${formatTime(slot.endTime, timezone)}`
             const resourceLabel = `${slot.resourceLocal.start}-${slot.resourceLocal.end}`
             // The viewer's calendar day can differ from the resource's (e.g. after midnight in India).
             const otherDay = dateIn(slot.startTime, timezone) !== date
+            // Explain DST oddities in the shown timezone, or else in the resource's own timezone.
+            const note =
+              dstNote(slot, availability.slots, timezone) ??
+              (resource && resource.timezone !== timezone
+                ? dstNote(slot, availability.slots, resource.timezone)
+                : null)
+            const noteId = `dst-note-${slot.startTime}`
             return (
-              <button
-                key={slot.startTime}
-                type="button"
-                disabled={booked}
-                onClick={() => setSelected(slot)}
-                className={`rounded border px-3 py-2 text-center text-sm font-medium ${booked
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through'
-                  : isSelected
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-gray-300 hover:border-blue-500'
-                  }`}
-              >
-                {otherDay && (
-                  <span className="block text-xs font-normal opacity-75">{formatDay(slot.startTime, timezone)}</span>
-                )}
-                <span className="block whitespace-nowrap">{slotLabel(slot)}</span>
-                {label !== resourceLabel && (
-                  <span className="block text-xs font-normal opacity-75">
-                    {resourceLabel} {resource?.timezone}
+              <div key={slot.startTime} className="relative">
+                <button
+                  type="button"
+                  disabled={booked || past}
+                  title={past ? 'This time has already passed' : booked ? 'Already booked' : undefined}
+                  onClick={() => setSelected(slot)}
+                  aria-describedby={note ? noteId : undefined}
+                  className={`h-full w-full rounded border py-2 text-center text-sm font-medium ${note ? 'pl-3 pr-8' : 'px-3'
+                    } ${booked
+                      ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 line-through'
+                      : past
+                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                        : isSelected
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 hover:border-blue-500'
+                    }`}
+                >
+                  {otherDay && (
+                    <span className="block text-xs font-normal opacity-75">{formatDay(slot.startTime, timezone)}</span>
+                  )}
+                  <span className="block whitespace-nowrap">{slotLabel(slot)}</span>
+                  {label !== resourceLabel && (
+                    <span className="block text-xs font-normal opacity-75">
+                      {resource ? slotLabel(slot, resource.timezone) : resourceLabel} {resource?.timezone}
+                    </span>
+                  )}
+                </button>
+                {note && (
+                  <span className="group/info absolute right-1.5 top-1.5">
+                    <button
+                      type="button"
+                      aria-label="Why does this time look unusual?"
+                      className="flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-blue-300 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      i
+                    </button>
+                    <span
+                      id={noteId}
+                      role="tooltip"
+                      className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-72 rounded bg-gray-900 px-3 py-2 text-left text-xs font-normal leading-relaxed text-white shadow-lg group-hover/info:block group-focus-within/info:block"
+                    >
+                      {note}
+                    </span>
                   </span>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>

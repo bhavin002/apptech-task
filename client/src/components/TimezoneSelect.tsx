@@ -1,20 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { allTimezones } from '../time'
+import { allTimezones, formatUtcOffset } from '../time'
 
 interface Props {
   value: string
   onChange: (timezone: string) => void
 }
 
-// Current UTC offset of a timezone, e.g. "GMT+5:30" (falls back to "" if unsupported).
+// Current UTC offset of a timezone, e.g. "UTC+5:30" (falls back to "" if unsupported).
 const offsetOf = (timeZone: string) => {
   try {
-    return (
-      new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
-        .formatToParts(new Date())
-        .find((part) => part.type === 'timeZoneName')?.value ?? ''
-    )
+    return formatUtcOffset(new Date().toISOString(), timeZone)
   } catch {
     return ''
   }
@@ -22,7 +18,9 @@ const offsetOf = (timeZone: string) => {
 
 const options = allTimezones().map((tz) => {
   const offset = offsetOf(tz)
-  return { tz, offset, search: `${tz.replace(/[_/]/g, ' ')} ${offset}`.toLowerCase() }
+  // Searchable by name, "UTC+5:30" and the "GMT+5:30" spelling.
+  const search = `${tz.replace(/[_/]/g, ' ')} ${offset} ${offset.replace('UTC', 'GMT')}`.toLowerCase()
+  return { tz, offset, search }
 })
 
 // Every word in the query must appear, so "new york" and "york america" both match.

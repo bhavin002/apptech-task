@@ -140,6 +140,8 @@ export const getAvailability = async (
     })
     : [];
 
+  const now = Date.now();
+
   const slots = intervals.map(({ start, end }) => {
     const booked = bookings.some(
       (booking) =>
@@ -147,12 +149,15 @@ export const getAvailability = async (
         booking.endTime.getTime() > start.toMillis()
     );
 
+    // Same rule as booking validation: a slot that has started is no longer bookable.
+    const past = start.toMillis() <= now;
+
     const local = start.setZone(resource.timezone);
 
     return {
       startTime: toUtcIso(start),
       endTime: toUtcIso(end),
-      status: booked ? "booked" : "available",
+      status: booked ? "booked" : past ? "past" : "available",
       resourceLocal: {
         start: local.toFormat("HH:mm"),
         end: end.setZone(resource.timezone).toFormat("HH:mm"),

@@ -34,6 +34,14 @@ export const validateBookingInput = async (input: BookingInput) => {
   const start = parseInstant(input.startTime, "startTime");
   const end = parseInstant(input.endTime, "endTime");
 
+  // A slot that has already started (or ended) can no longer be booked.
+  if (start <= DateTime.utc()) {
+    throw new AppError(
+      400,
+      "This slot is in the past and can no longer be booked."
+    );
+  }
+
   if (end.diff(start, "minutes").minutes !== SLOT_MINUTES) {
     throw new AppError(
       400,

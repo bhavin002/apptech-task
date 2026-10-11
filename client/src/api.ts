@@ -17,7 +17,7 @@ export interface Resource {
 export interface Slot {
   startTime: string
   endTime: string
-  status: 'available' | 'booked'
+  status: 'available' | 'booked' | 'past'
   resourceLocal: { start: string; end: string; utcOffset: string }
 }
 

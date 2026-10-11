@@ -29,7 +29,7 @@ services:
       DB_PASSWORD: postgres
       JWT_SECRET: my_super_secret_key
       ADMIN_EMAIL: admin@example.com
-      ADMIN_PASSWORD: Admin@12345
+      ADMIN_PASSWORD: Admin@1234
     ports:
       - "${SERVER_PORT:-8000}:8000"
     depends_on:

@@ -76,7 +76,7 @@ export const getSlots = async (token: string, resourceId: number, date: string) 
   ).body.data.slots as {
     startTime: string;
     endTime: string;
-    status: "available" | "booked";
+    status: "available" | "booked" | "past";
     resourceLocal: { start: string; end: string; utcOffset: string };
   }[];
 
