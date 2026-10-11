@@ -10,6 +10,8 @@ interface Props {
 
 type Message = { kind: 'success' | 'error'; text: string } | null
 
+const MESSAGE_TIMEOUT_MS = 2000
+
 export default function BookingPanel({ timezone, onBooked }: Props) {
   const [resources, setResources] = useState<Resource[]>([])
   const [resourceId, setResourceId] = useState<number | null>(null)
@@ -44,6 +46,13 @@ export default function BookingPanel({ timezone, onBooked }: Props) {
       })
       .catch((err) => setMessage({ kind: 'error', text: err.message }))
   }, [])
+
+  // Hide the success or error message after a moment. A newer message restarts the timer.
+  useEffect(() => {
+    if (!message) return
+    const timer = setTimeout(() => setMessage(null), MESSAGE_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [message])
 
   useEffect(() => {
     if (!resourceId || !date) return
