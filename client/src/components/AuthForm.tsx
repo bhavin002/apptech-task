@@ -109,16 +109,18 @@ export default function AuthForm() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
 
   return (
-    <div className="mx-auto mt-16 max-w-sm rounded-lg bg-white p-6 shadow">
-      <h1 className="mb-4 text-xl font-semibold">{mode === 'login' ? 'Log in' : 'Create account'}</h1>
-      {mode === 'login' ? <LoginForm /> : <SignupForm />}
-      <button
-        type="button"
-        onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-        className="mt-4 text-sm text-blue-600 hover:underline cursor-pointer"
-      >
-        {mode === 'login' ? 'No account? Sign up' : 'Have an account? Log in'}
-      </button>
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow">
+        <h1 className="mb-4 text-xl font-semibold">{mode === 'login' ? 'Log in' : 'Create account'}</h1>
+        {mode === 'login' ? <LoginForm /> : <SignupForm />}
+        <button
+          type="button"
+          onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+          className="mt-4 text-sm text-blue-600 hover:underline"
+        >
+          {mode === 'login' ? 'No account? Sign up' : 'Have an account? Log in'}
+        </button>
+      </div>
     </div>
   )
 }
