@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+@layer base {
+  button,
+  [role="button"],
+  select,
+  summary,
+  input[type="date"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="submit"],
+  input[type="button"],
+  input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: not-allowed;
+  }
+}

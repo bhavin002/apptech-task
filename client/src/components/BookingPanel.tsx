@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api'
 import type { AvailabilityResponse, Resource, Slot } from '../api'
 import { dateIn, dstNote, formatDateTime, formatDay, formatSlotRange, formatTime, formatZone, todayIn } from '../time'
+import Spinner from './Spinner'
 
 interface Props {
   timezone: string
@@ -11,18 +12,33 @@ interface Props {
 
 type Message = { kind: 'success' | 'error'; text: string } | null
 
+interface LoadedAvailability {
+  requestKey: string
+  dayKey: string
+  data: AvailabilityResponse | null
+}
+
+const SKELETON_SLOTS = 8
+
 const MESSAGE_TIMEOUT_MS = 2000
 
 export default function BookingPanel({ timezone, onBooked, availabilityKey }: Props) {
   const [resources, setResources] = useState<Resource[]>([])
   const [resourceId, setResourceId] = useState<number | null>(null)
   const [date, setDate] = useState('')
-  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null)
+  const [resourcesLoading, setResourcesLoading] = useState(true)
+  const [loaded, setLoaded] = useState<LoadedAvailability | null>(null)
   const [selected, setSelected] = useState<Slot | null>(null)
+  const [booking, setBooking] = useState(false)
   const [message, setMessage] = useState<Message>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const resource = resources.find((r) => r.id === resourceId)
+
+  const dayKey = `${resourceId}|${date}`
+  const requestKey = `${dayKey}|${refreshKey}|${availabilityKey}`
+  const loading = resourcesLoading || (!!resourceId && !!date && loaded?.requestKey !== requestKey)
+  const availability = loaded?.dayKey === dayKey ? loaded.data : null
 
   // On a DST fall-back night the same local start time occurs twice (at different instants);
   // those slots show their zone so the two can be told apart.
@@ -46,6 +62,7 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
         }
       })
       .catch((err) => setMessage({ kind: 'error', text: err.message }))
+      .finally(() => setResourcesLoading(false))
   }, [])
 
   // Hide the success or error message after a moment. A newer message restarts the timer.
@@ -60,20 +77,21 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
     let active = true
     api
       .availability(resourceId, date)
-      .then((data) => active && setAvailability(data))
+      .then((data) => active && setLoaded({ requestKey, dayKey, data }))
       .catch((err) => {
         if (!active) return
-        setAvailability(null)
+        setLoaded({ requestKey, dayKey, data: null })
         setMessage({ kind: 'error', text: err.message })
       })
     return () => {
       active = false
     }
-  }, [resourceId, date, refreshKey, availabilityKey])
+  }, [resourceId, date, requestKey, dayKey])
 
   const confirm = async () => {
-    if (!selected || !resourceId) return
+    if (!selected || !resourceId || booking) return
     setMessage(null)
+    setBooking(true)
     try {
       await api.book(resourceId, selected.startTime, selected.endTime)
       setMessage({
@@ -88,6 +106,7 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
           : (err as Error).message
       setMessage({ kind: 'error', text })
     }
+    setBooking(false)
     setSelected(null)
     setRefreshKey((key) => key + 1)
   }
@@ -135,21 +154,37 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
         Times shown in <span className="font-medium text-gray-900">{timezone}</span>.
       </p>
 
-      {message && (
-        <div
-          className={`mb-4 rounded px-3 py-2 text-sm ${message.kind === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-            }`}
-        >
-          {message.text}
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
+        {message && (
+          <div
+            className={`pointer-events-auto max-w-lg rounded border px-4 py-2 text-sm shadow-lg ${message.kind === 'success'
+              ? 'border-green-200 bg-green-50 text-green-800'
+              : 'border-red-200 bg-red-50 text-red-800'
+              }`}
+          >
+            {message.text}
+          </div>
+        )}
+      </div>
+
+      {!availability && loading && (
+        <div aria-hidden="true" className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
+          {Array.from({ length: SKELETON_SLOTS }, (_, i) => (
+            <div key={i} className="h-11.5 animate-pulse rounded border border-gray-200 bg-gray-100" />
+          ))}
         </div>
       )}
 
-      {availability && availability.slots.length === 0 && (
+      {availability && availability.slots.length === 0 && !loading && (
         <p className="text-sm text-gray-500">No availability on this day.</p>
       )}
 
       {availability && availability.slots.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
+        <div
+          aria-busy={loading}
+          className={`grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2 transition-opacity ${loading || booking ? 'pointer-events-none opacity-50' : ''
+            }`}
+        >
           {availability.slots.map((slot) => {
             const booked = slot.status === 'booked'
             const past = slot.status === 'past'
@@ -227,9 +262,11 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
           <button
             type="button"
             onClick={confirm}
-            className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            disabled={booking}
+            className="flex items-center gap-2 rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-75"
           >
-            Confirm booking
+            {booking && <Spinner />}
+            {booking ? 'Booking…' : 'Confirm booking'}
           </button>
         </div>
       )}

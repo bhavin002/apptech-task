@@ -1,19 +1,34 @@
 import { Sequelize } from "sequelize";
+import pg from "pg";
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME as string,
-  process.env.DB_USER as string,
-  process.env.DB_PASSWORD as string,
-  {
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, {
     dialect: "postgres",
+    dialectModule: pg,
     logging: false,
-    pool: {
-      max: 10,
+    dialectOptions: {
+      ssl: { require: true, rejectUnauthorized: false },
     },
-  }
-);
+    pool: {
+      max: 2,
+      idle: 10000,
+    },
+  }) : new Sequelize(
+    process.env.DB_NAME as string,
+    process.env.DB_USER as string,
+    process.env.DB_PASSWORD as string,
+    {
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT),
+      dialect: "postgres",
+      dialectModule: pg,
+      logging: false,
+      pool: {
+        max: 10,
+      },
+    }
+  );
+
 
 const applyConstraints = async () => {
   await sequelize.query(

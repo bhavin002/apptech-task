@@ -19,9 +19,10 @@ function App() {
     setBookings([])
   }
 
-  const loadBookings = useCallback(() => {
-    api.myBookings().then(setBookings).catch(() => setBookings([]))
-  }, [])
+  const loadBookings = useCallback(
+    () => api.myBookings().then(setBookings).catch(() => setBookings([])),
+    [],
+  )
 
   useEffect(() => {
     if (user) loadBookings()
@@ -33,7 +34,7 @@ function App() {
 
   const cancel = async (id: number) => {
     await api.cancel(id)
-    loadBookings()
+    await loadBookings()
     setAvailabilityKey((key) => key + 1)
   }
 
