@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { api, hasToken, setToken } from '../api'
+import { authService, hasToken, setToken } from '../api'
 import type { User } from '../api'
 import type { LoginInput, SignupInput } from '../validation/auth.schema'
 import { AuthContext } from './auth-context'
@@ -11,21 +11,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!hasToken()) return
-    api
-      .me()
-      .then(setUser)
-      .catch(() => setToken(null))
-      .finally(() => setChecking(false))
+    const restoreSession = async () => {
+      try {
+        setUser(await authService.me())
+      } catch {
+        setToken(null)
+      } finally {
+        setChecking(false)
+      }
+    }
+    restoreSession()
   }, [])
 
   const login = useCallback(async ({ email, password }: LoginInput) => {
-    const result = await api.login(email, password)
+    const result = await authService.login(email, password)
     setToken(result.token)
     setUser(result.user)
   }, [])
 
   const signup = useCallback(async (data: SignupInput) => {
-    const result = await api.signup(data)
+    const result = await authService.signup(data)
     setToken(result.token)
     setUser(result.user)
   }, [])

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError } from '../api'
+import { ApiError, bookingService, resourceService } from '../api'
 import type { AvailabilityResponse, Resource, Slot } from '../api'
 import { dateIn, dstNote, formatDateTime, formatDay, formatSlotRange, formatTime, formatZone, todayIn } from '../time'
 import Spinner from './Spinner'
@@ -52,17 +52,21 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
     formatSlotRange(slot.startTime, slot.endTime, zone, hasRepeatedStart(slot, zone))
 
   useEffect(() => {
-    api
-      .resources()
-      .then((list) => {
+    const loadResources = async () => {
+      try {
+        const list = await resourceService.list()
         setResources(list)
         if (list.length) {
           setResourceId(list[0].id)
           setDate(todayIn(list[0].timezone))
         }
-      })
-      .catch((err) => setMessage({ kind: 'error', text: err.message }))
-      .finally(() => setResourcesLoading(false))
+      } catch (err) {
+        setMessage({ kind: 'error', text: (err as Error).message })
+      } finally {
+        setResourcesLoading(false)
+      }
+    }
+    loadResources()
   }, [])
 
   // Hide the success or error message after a moment. A newer message restarts the timer.
@@ -74,15 +78,19 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
 
   useEffect(() => {
     if (!resourceId || !date) return
+    // Ignore the answer if the user has already moved to another day or resource.
     let active = true
-    api
-      .availability(resourceId, date)
-      .then((data) => active && setLoaded({ requestKey, dayKey, data }))
-      .catch((err) => {
+    const loadAvailability = async () => {
+      try {
+        const data = await resourceService.availability(resourceId, date)
+        if (active) setLoaded({ requestKey, dayKey, data })
+      } catch (err) {
         if (!active) return
         setLoaded({ requestKey, dayKey, data: null })
-        setMessage({ kind: 'error', text: err.message })
-      })
+        setMessage({ kind: 'error', text: (err as Error).message })
+      }
+    }
+    loadAvailability()
     return () => {
       active = false
     }
@@ -93,7 +101,7 @@ export default function BookingPanel({ timezone, onBooked, availabilityKey }: Pr
     setMessage(null)
     setBooking(true)
     try {
-      await api.book(resourceId, selected.startTime, selected.endTime)
+      await bookingService.create(resourceId, selected.startTime, selected.endTime)
       setMessage({
         kind: 'success',
         text: `Booked ${resource?.name} for ${formatDateTime(selected.startTime, timezone)} ${formatZone(selected.startTime, timezone)}.`,

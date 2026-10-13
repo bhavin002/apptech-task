@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api } from './api'
+import { bookingService } from './api'
 import type { Booking } from './api'
 import AuthForm from './components/AuthForm'
 import BookingPanel from './components/BookingPanel'
@@ -7,6 +7,14 @@ import MyBookings from './components/MyBookings'
 import TimezoneSelect from './components/TimezoneSelect'
 import { useAuth } from './context/useAuth'
 import { browserTimezone } from './time'
+
+async function fetchMyBookings(): Promise<Booking[]> {
+  try {
+    return await bookingService.mine()
+  } catch {
+    return []
+  }
+}
 
 function App() {
   const { user, checking, logout: endSession } = useAuth()
@@ -19,21 +27,26 @@ function App() {
     setBookings([])
   }
 
-  const loadBookings = useCallback(
-    () => api.myBookings().then(setBookings).catch(() => setBookings([])),
-    [],
-  )
+  const loadBookings = useCallback(async () => {
+    const list = await fetchMyBookings()
+    setBookings(list)
+  }, [])
 
   useEffect(() => {
-    if (user) loadBookings()
-  }, [user, loadBookings])
+    if (!user) return
+    const loadOnLogin = async () => {
+      const list = await fetchMyBookings()
+      setBookings(list)
+    }
+    loadOnLogin()
+  }, [user])
 
   const changeTimezone = (value: string) => {
     setTimezone(value)
   }
 
   const cancel = async (id: number) => {
-    await api.cancel(id)
+    await bookingService.cancel(id)
     await loadBookings()
     setAvailabilityKey((key) => key + 1)
   }
